@@ -51,7 +51,7 @@
 
 // title of these windows:
 
-const char* WINDOWTITLE = "OpenGL / GLUT Sample -- Byron Ojua-Nice";
+const char* WINDOWTITLE = "Project 3 -- Byron Ojua-Nice";
 const char* GLUITITLE = "User Interface Window";
 
 // what the glui package defines as true and false:
@@ -130,21 +130,23 @@ const GLfloat AXES_WIDTH = 3.;
 
 enum Colors
 {
+	WHITE_COLOR,
 	RED,
+	ORANGE,
 	YELLOW,
 	GREEN,
 	CYAN,
-	BLUE,
 	MAGENTA
 };
 
 char* ColorNames[] =
 {
+	(char*)"White",
 	(char*)"Red",
+	(char*)"Orange",
 	(char*)"Yellow",
 	(char*)"Green",
 	(char*)"Cyan",
-	(char*)"Blue",
 	(char*)"Magenta"
 };
 
@@ -153,11 +155,12 @@ char* ColorNames[] =
 
 const GLfloat Colors[][3] =
 {
+	{ 1., 1., 1. },		// white
 	{ 1., 0., 0. },		// red
+	{ 1., .5, 0. },		// orange
 	{ 1., 1., 0. },		// yellow
 	{ 0., 1., 0. },		// green
 	{ 0., 1., 1. },		// cyan
-	{ 0., 0., 1. },		// blue
 	{ 1., 0., 1. },		// magenta
 };
 
@@ -196,14 +199,17 @@ GLuint  ZWallList;				// object display list
 GLuint	CatList;				// object display list
 GLuint  DogList;				// object display list
 GLuint  CowList;				// object display list
+GLuint  BallList;				// object display list
 int		DebugOn;				// != 0 means to print debugging info
 int		DepthCueOn;				// != 0 means to use intensity depth cueing
 int		DepthBufferOn;			// != 0 means to use the z-buffer
 int		DepthFightingOn;		// != 0 means to force the creation of z-fighting
 int		MainWindow;				// window id for main graphics window
 int		NowColor;				// index into Colors[ ]
+int     LightColor;				// color of the light
 int		NowProjection;		// ORTHO or PERSP
 bool	Frozen;					// true means to freeze the animation
+bool    Spotlight;				// true means to use spotlight
 float	Scale;					// scaling factor
 int		ShadowsOn;				// != 0 means to turn shadows on
 float	Time;					// used for animation, this has a value between 0. and 1.
@@ -316,7 +322,7 @@ TimeOfDaySeed()
 
 #include "setmaterial.cpp"
 #include "setlight.cpp"
-//#include "osusphere.cpp"
+#include "osusphere.cpp"
 //#include "osucube.cpp"
 //#include "osucylindercone.cpp"
 //#include "osutorus.cpp"
@@ -490,10 +496,18 @@ Display()
 
 	glEnable(GL_LIGHTING);
 	glEnable(GL_LIGHT0);
-	//SetPointLight(GL_LIGHT0, 2.0f, 0.00f, 0.0f, 1.0f, 1.0f, 1.0f);
-	SetSpotLight(GL_LIGHT0, 2.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
 
-	// draw the box object by calling up its display list:
+	float lightRotRad = 4.0f;
+	float lightX = lightRotRad * cosf(Time * F_2_PI);
+	float lightY = 0.0f;
+	float lightZ = lightRotRad * sinf(Time * F_2_PI);
+
+	if (Spotlight) {
+		SetSpotLight(GL_LIGHT0, lightX, lightY, lightZ, -1.0f, 0.0f, 0.0f, Colors[LightColor][0], Colors[LightColor][1], Colors[LightColor][2]);
+	}
+	else {
+		SetPointLight(GL_LIGHT0, lightX, lightY, lightZ, Colors[LightColor][0], Colors[LightColor][1], Colors[LightColor][2]);
+	}
 
 	glPushMatrix();
 	glCallList(FloorList);
@@ -509,28 +523,36 @@ Display()
 	glPopMatrix();
 
 	glPushMatrix();
-	SetMaterial(1., 0., 0., 20.0f);	// red
-	glTranslatef(0.0f, -0.5f, 0.0f);
+	SetMaterial(1., 0., 0., 50.0f);	// red
+	glTranslatef(1.0f, -0.5f, 0.0f);
+	glRotatef(180.f, 0.f, 1.f, 0.f);
 	glScalef(0.3f, 0.3f, 0.3f);
 	glCallList(CatList);
 	glPopMatrix();
 
 	glPushMatrix();
-	SetMaterial(0., 1., 0., 10.f);	// green
-	glTranslatef(1.0f, 0.0f, 0.0f);
+	SetMaterial(0., 1., 0., 25.f);	// green
+	glTranslatef(0.0f, 0.0f, -1.75f);
+	glRotatef(90.f, 0.f, 1.f, 0.f);
 	glScalef(0.35f, 0.35f, 0.35f);
 	glCallList(CowList);
 	glPopMatrix();
 
 	glPushMatrix();
 	SetMaterial(0., 0., 1., 5.0f);	// blue
-	glTranslatef(0.0f, -0.5f, 1.5f);
+	glTranslatef(0.0f, -0.5f, 1.0f);
 	glScalef(0.4f, 0.4f, 0.4f);
 	glCallList(DogList);
 	glPopMatrix();
 
 
 	glDisable(GL_LIGHTING);
+
+	glPushMatrix();
+	glColor3f(Colors[LightColor][0], Colors[LightColor][1], Colors[LightColor][2]);
+	glTranslatef(lightX, lightY, lightZ);
+	glCallList(BallList);
+	glPopMatrix();
 
 #ifdef DEMO_Z_FIGHTING
 	if (DepthFightingOn != 0)
@@ -900,6 +922,13 @@ InitLists()
 	CowList = LoadObjMtlFiles((char*)"cow.obj");
 	DogList = LoadObjMtlFiles((char*)"dog.obj");
 
+	// Create light ball
+	BallList = glGenLists(1);
+	glNewList(BallList, GL_COMPILE);
+	SetMaterial(1.0f, 1.0f, 1.0f, 5.f);	// bright white
+	OsuSphere(0.1f, 20, 20);
+	glEndList();
+
 
 	// create the axes:
 
@@ -987,16 +1016,6 @@ Keyboard(unsigned char c, int x, int y)
 
 	switch (c)
 	{
-	case 'o':
-	case 'O':
-		NowProjection = ORTHO;
-		break;
-
-	case 'p':
-	case 'P':
-		NowProjection = PERSP;
-		break;
-
 	case 'q':
 	case 'Q':
 	case ESCAPE:
@@ -1010,6 +1029,52 @@ Keyboard(unsigned char c, int x, int y)
 			glutIdleFunc(NULL);
 		else
 			glutIdleFunc(Animate);
+		break;
+
+	case 's':
+	case 'S':
+		Spotlight = true;
+		break;
+
+	case 'p':
+	case 'P':
+		Spotlight = false;
+		break;
+
+	case 'w':
+	case 'W':
+		LightColor = WHITE_COLOR;
+		break;
+
+	case 'r':
+	case 'R':
+		LightColor = RED;
+		break;
+
+	case 'o':
+	case 'O':
+		LightColor = ORANGE;
+		break;
+
+	case 'y':
+	case 'Y':
+		LightColor = YELLOW;
+		break;
+
+
+	case 'g':
+	case 'G':
+		LightColor = GREEN;
+		break;
+
+	case 'c':
+	case 'C':
+		LightColor = CYAN;
+		break;
+
+	case 'm':
+	case 'M':
+		LightColor = MAGENTA;
 		break;
 
 	default:
@@ -1135,6 +1200,7 @@ Reset()
 	NowColor = YELLOW;
 	NowProjection = PERSP;
 	Frozen = false;
+	Spotlight = false;
 	Xrot = Yrot = 0.;
 }
 
